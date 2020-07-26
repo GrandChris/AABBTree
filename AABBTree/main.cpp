@@ -8,8 +8,6 @@
 
 
 #include "AABBTree.h"
-//#include "AABBTreeNode.h"
-
 #include <iostream>
 
 using namespace std;
@@ -53,16 +51,35 @@ private:
 
 };
 
+//template<typename T>
+//concept CollisionHandler2 = requires(T a, T & b) {
+//	a.handleCollision(b);
+//};
+//
+//template<CollisionHandler2 T>
+//class D
+//{
+//public:
+//	void ok(T a, T& b) {
+//		a.handleCollision(b);
+//	}
+//};
 
 
 int main()
 {
-	MyAABBTree::Node root;
+	//A a1;
+	//A a2;
 
-	auto a = std::make_shared<A>();
-	auto leef = root.createLeef(a);
+	//D<A> testClass;
+	//testClass.ok(a1, a2);
 
-	leef.remove();
+	//MyAABBTree::Node root;
+
+	//auto a = std::make_shared<A>();
+	//auto leef = root.createLeef(a);
+
+	//leef.remove();
 
 
 	return 0;

@@ -1,217 +1,393 @@
 ///////////////////////////////////////////////////////////////////////////////
-// File:		 AABBTreeLeef.h
+// File:		 AABBTree2Node.h
 // Revision:	 1.0
-// Date:		 19.07.2020
+// Date:		 25.07.2020
 // Author:		 Christian Steinbrecher
-// Description:  Leef of the binary tree
+// Description:  A node of an AABBTree
 ///////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
-#include "AABBTreeBaseNode.h"
+#include "AABBTree.h"
 
-#include <memory>
+#include <glm/glm.hpp>
+
+#include <tuple>
+#include <ostream>
 
 
 template<typename T>
-class AABBTree<T>::Node : public BaseNode {
+class AABBTree<T>::Node {
 public:
+	using sptr = std::shared_ptr<Node>;
 
 	// D-Tor
-	virtual ~Node();
+	virtual ~Node() = default;
 
-	// Allocates a new leef and inserts it into the AABBTree
-	Leef& createLeef(std::shared_ptr<T> obj,
-		glm::vec3 const& pos = { 0.0f,  0.0f,  0.0f },
-		glm::vec3 const& min = { -0.5f, -0.5f, -0.5f },
-		glm::vec3 const& max = { 0.5f,  0.5f,  0.5f });
+	// Inserts a node as a leef into the tree
+	virtual bool insert(sptr leef);
 
-	BaseNode* getLeft() const;
-	BaseNode* getRight() const;
+	// First object which as a collision with the given node
+	virtual std::shared_ptr<T> checkCollision(Node const & leef) const;
 
-	void setLeft(BaseNode& node);
-	void setRight(BaseNode& node);
+	// returns the amount of Nodes inside the tree, including Leefs
+	size_t size() const;
 
-	virtual void insert(Leef& leef) override;
+	void print(std::ostream& ost) const;
 
-	virtual Leef * checkCollision(Leef& leef) override;
+	// returns the height of the deepest leef;
+	size_t height() const;
+
+	// calls func with func(min, max) for every node in the tree
+	template<typename TFunc>
+	void getAllMinMax(TFunc func) const;
+
+	// do not use
+	void reinsertParrent(Node& node);
+
+protected:
+	virtual bool insertRecursive(sptr& leef);
+
+	// returns parrent node with possible collision
+	// returns nullptr if there is no collision
+	sptr update(Node* child);
+	sptr updateParrent();
+	sptr remove();
+
+	glm::vec3 getMin() const;
+	glm::vec3 getMax() const;
+
+	void setMin(glm::vec3 const& min);
+	void setMax(glm::vec3 const& max);
+
+	// Calculate volumne including the other node
+	float volume(Node const& other) const;
+
+	// Calculate if the other node is inside or outside this node
+	bool isInside(Node const& other) const;
+	bool isOutside(Node const& other) const;
+
+	bool isInside(glm::vec3 const& min, glm::vec3 const& max) const;
+	bool isOutside(glm::vec3 const& min, glm::vec3 const& max) const;
+
+	// returns the node, on which insertion would result into the smalles volume
+	sptr getSmallesVolumeNode(Node & node);
 
 
-	// updates the bounding box of all necessarry parrent nodes
-	// calls obj->handleCollision(other) when a collision is found
-	void update(Leef & leef, bool isLeft);
-
-	// leef got removed
-	void update();
 
 private:
-	void calcMinMax(glm::vec3 & min, glm::vec3 & max);
+	std::tuple<glm::vec3, glm::vec3> calculateChildrenMinMax() const;
 
+	// prints a nodes with a given depth
+	template<typename TFunc>
+	void print(std::ostream& ost, size_t const depth, size_t const height, TFunc func) const;
 
-	BaseNode* mLeft = nullptr;
-	BaseNode* mRight = nullptr;
+	AABBTree<T>::Node * mParrent = nullptr;
+	sptr mLeft = nullptr;
+	sptr mRight = nullptr;
+	bool mIsLeft = true;	// if it is left or right inside the tree
+
+	glm::vec3 mMin = {};  // Minimum Edge of the bounding box in world coordinates
+	glm::vec3 mMax = {};  // Maximum Edge of the bounding box in world coordinates
+
+	
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 // #######+++++++ Implementation +++++++#######
 
-#include "AABBTreeLeef.h"
+#include <cassert>
+#include <algorithm>
+#include <iomanip>
+#include <functional>
 
 template<typename T>
-inline AABBTree<T>::Node::~Node()
+inline bool AABBTree<T>::Node::insertRecursive(sptr& leef)
 {
-	// remove itself from the parrent
-	if (BaseNode::mParrent != nullptr) {
-		if (isLeft) {
-			BaseNode::mParrent->mLeft = nullptr;
-		}
-		else {
-			BaseNode::mParrent->mRight = nullptr;
-		}
+	if (leef == nullptr) {
+		return true;
 	}
 
-	// delete all children
-	delete mLeft; mLeft = nullptr;
-	delete mRight mRight = nullptr;
+	leef->mParrent = this;
+	if (mLeft == nullptr && mRight == nullptr) {
+		mMin = leef->mMin;
+		mMax = leef->mMax;
+	}
+	else
+	{
+		mMin = glm::min(mMin, leef->mMin);
+		mMax = glm::max(mMax, leef->mMax);
+	}
 
-}
 
-template<typename T>
-inline typename AABBTree<T>::Leef& AABBTree<T>::Node::createLeef(std::shared_ptr<T> obj, glm::vec3 const& pos, glm::vec3 const& min, glm::vec3 const& max)
-{
-	auto leef = new Leef(obj, pos, min, max);
-
-	insert(*leef);
-
-	return *leef;
-}
-
-template<typename T>
-inline typename AABBTree<T>::BaseNode* AABBTree<T>::Node::getLeft() const
-{
-	return mLeft;
-}
-
-template<typename T>
-inline typename AABBTree<T>::BaseNode* AABBTree<T>::Node::getRight() const
-{
-	return mRight;
-}
-
-template<typename T>
-inline void AABBTree<T>::Node::setLeft(BaseNode& node)
-{
-	mLeft = &node;
-}
-
-template<typename T>
-inline void AABBTree<T>::Node::setRight(BaseNode& node)
-{
-	mRight = &node;
-}
-
-template<typename T>
-inline void AABBTree<T>::Node::insert(Leef& leef)
-{
-	leef.setParrent(this);
-	BaseNode::mAbsMin = glm::min(BaseNode::mAbsMin, leef.getMin());
-	BaseNode::mAbsMax = glm::max(BaseNode::mAbsMax, leef.getMax());
 
 	// insert into existing node
-	if (mLeft == nullptr) {
-		mLeft = &leef;
-		return;
+	if (mLeft == nullptr) 
+	{	// left node is free
+		mLeft = leef;
 	}
-	else if (mRight == nullptr) {
-		mRight = &leef;
-		return;
+	else if (mRight == nullptr) 
+	{	// right node is free
+		mRight = leef;
 	}
-	else if (mLeft->volume(leef) <= mRight->volume(leef)) {
-		mLeft->insert(leef);
+	else if (mLeft->volume(*leef) <= mRight->volume(*leef)) 
+	{	// left node results in a smaller area
+		if (!mLeft->insert(leef)) 
+		{	// left node in the tree is already a leef. Create a new node
+			auto left = mLeft;
+			mLeft = std::make_shared<Node>();
+			mLeft->insert(left);
+			mLeft->insert(leef);
+		}
+	}
+	else 
+	{	// right node results in a smaller area
+		if (!mRight->insert(leef))
+		{	// left node in the tree is already a leef. Create a new node
+			auto right = mRight;
+			mRight = std::make_shared<Node>();
+			mRight->insert(right);
+			mRight->insert(leef);
+		}
+	}
+
+	return true;
+}
+
+template<typename T>
+inline bool AABBTree<T>::Node::insert(sptr leef)
+{
+	return insertRecursive(leef);
+}
+
+template<typename T>
+inline std::shared_ptr<T> AABBTree<T>::Node::checkCollision(Node const& leef) const
+{
+	return std::shared_ptr<T>();
+}
+
+template<typename T>
+inline size_t AABBTree<T>::Node::size() const
+{
+	size_t size = 1;
+	if (mLeft != nullptr) {
+		size += mLeft->size();
+	}
+	if (mRight != nullptr) {
+		size += mRight->size();
+	}
+
+	return size;
+}
+
+
+
+template<typename T>
+inline size_t AABBTree<T>::Node::height() const
+{
+	size_t height = 1;
+	size_t heightLeft  = mLeft  != nullptr ? mLeft->height()  : 0;
+	size_t heightRight = mRight != nullptr ? mRight->height() : 0;
+	height += std::max(heightLeft, heightRight);
+
+	return height;
+}
+
+template<typename T>
+inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::update(Node* child)
+{
+	auto [min, max] = calculateChildrenMinMax();
+
+	if (min != mMin || max != mMax) 
+	{	// Node is outdated
+		mMin = min;
+		mMax = max;
+
+		// check for collision
+		if (mLeft != nullptr && mRight != nullptr) {
+			if (!mLeft->isOutside(*mRight)) {
+				updateParrent();
+
+				// returns the collision node
+				if (mLeft.get() != child)
+				{	// Left is other node
+					return mLeft;
+				}
+				else 
+				{  // right is other node
+					return mRight;
+				}
+			}
+		}
+
+		return updateParrent();
 	}
 	else {
-		mRight->insert(leef);
+		return nullptr;
 	}
 }
 
 template<typename T>
-inline AABBTree<T>::Leef* AABBTree<T>::Node::checkCollision(Leef& leef)
+inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::updateParrent()
 {
-	if (mLeft != nullptr && !mLeft->isOutside(isOutside)) {
-		return mLeft->checkCollision(leef);
+	if (mParrent != nullptr) {
+		return mParrent->update(this);
 	}
-	else if (mRight != nullptr && !mRight->isOutside(isOutside)) {
-		return mRight->checkCollision(leef);
+	else {
+		return nullptr;
 	}
-
-	return nullptr;
 }
 
 template<typename T>
-inline void AABBTree<T>::Node::update()
+inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::remove()
+{
+	if (mParrent == nullptr) {
+		return nullptr;
+	}
+
+	AABBTree<T>::Node::sptr thisNode = nullptr;
+	if (mParrent->mLeft.get() == this) 
+	{	// this is left
+		assert(mParrent->mLeft.get() == this);
+		thisNode = mParrent->mLeft;
+		mParrent->mLeft = nullptr;
+	}
+	else
+	{	// this is right
+		assert(mParrent->mRight.get() == this);
+		thisNode = mParrent->mRight;
+		mParrent->mRight = nullptr;
+	}
+
+	mParrent->update(nullptr);
+	mParrent = nullptr;
+
+	return thisNode;	// return as shared pointer to not yet kill this object
+}
+
+template<typename T>
+inline glm::vec3 AABBTree<T>::Node::getMin() const
+{
+	return mMin;
+}
+
+template<typename T>
+inline glm::vec3 AABBTree<T>::Node::getMax() const
+{
+	return mMax;
+}
+
+template<typename T>
+inline void AABBTree<T>::Node::setMin(glm::vec3 const& min)
+{
+	mMin = min;
+}
+
+template<typename T>
+inline void AABBTree<T>::Node::setMax(glm::vec3 const& max)
+{
+	mMax = max;
+}
+
+template<typename T>
+inline float AABBTree<T>::Node::volume(Node const& other) const
+{
+	auto const min = glm::min(mMin, other.mMin);
+	auto const max = glm::max(mMax, other.mMax);
+
+	auto const d = min - max;
+	auto const V = std::abs(d.x * d.y * d.z);
+
+	return V;
+}
+
+template<typename T>
+inline bool AABBTree<T>::Node::isInside(Node const& other) const
+{
+	return isInside(other.mMin, other.mMax);
+}
+
+template<typename T>
+inline bool AABBTree<T>::Node::isOutside(Node const& other) const
+{
+	return isOutside(other.mMin, other.mMax);
+}
+
+template<typename T>
+inline bool AABBTree<T>::Node::isInside(glm::vec3 const& min, glm::vec3 const& max) const
+{
+	return  min.x >= mMin.x &&
+		    min.y >= mMin.y &&
+		    min.z >= mMin.z &&
+		    max.x <= mMax.x &&
+		    max.y <= mMax.y &&
+		    max.z <= mMax.z;
+}
+
+template<typename T>
+inline bool AABBTree<T>::Node::isOutside(glm::vec3 const& min, glm::vec3 const& max) const
+{
+	return  max.x < mMin.x ||
+		    max.y < mMin.y ||
+		    max.z < mMin.z ||
+		    min.x > mMax.x ||
+		    min.y > mMax.y ||
+		    min.z > mMax.z;
+}
+
+template<typename T>
+inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::getSmallesVolumeNode(Node& node)
+{
+	if (mLeft == nullptr) {
+		return mRight;
+	}
+	else if (mRight == nullptr) {
+		return mLeft;
+	}
+	else {
+		if (mLeft->volume(node) < mRight->volume(node)) {
+			return mLeft;
+		}
+		else {
+			return mRight;
+		}
+	}
+}
+
+template<typename T>
+inline void AABBTree<T>::Node::reinsertParrent(Node& node)
+{
+	if (mParrent != nullptr && mParrent->mLeft != nullptr && mParrent->mRight != nullptr) {
+		auto smallerNode = mParrent->getSmallesVolumeNode(node);
+		if (smallerNode.get() != &node) 
+		{	// reinsert node
+			auto sptrNode = node.remove();
+			mParrent->insert(sptrNode);
+		}
+	}
+}
+
+
+template<typename T>
+inline std::tuple<glm::vec3, glm::vec3> AABBTree<T>::Node::calculateChildrenMinMax() const
 {
 	glm::vec3 min = {};
 	glm::vec3 max = {};
-	calcMinMax(min, max);
 
-	if (min != getMin() || max != getMax())
-	{ // boundaries have changed
-		if (BaseNode::mParrent != nullptr) {
-			// update parrent node
-			BaseNode::mParrent->update();
-		}
-	}
-}
-
-template<typename T>
-inline void AABBTree<T>::Node::update(Leef & leef, bool isLeft)
-{
-	auto callerNode = isLeft ? mLeft : mRight;
-	auto otherNode = isLeft ? mRight : mLeft;
-
-	if (otherNode != nullptr && !callerNode.isOutside(otherNode))
-	{ // collision detected
-		// search for colliding element
-		Leef * collidingLeef = checkCollision(leef);
-		if (collidingLeef != nullptr) {
-			bool remove = leef.handleCollision(&collidingLeef);
-			if (remove == true) {
-				leef.remove();
-				delete leef;
-				return;
-			}
-		}
-		else
-		{ // no collision found
-			// test if bounding box gets smaller if element is inserted into the other bounding box
-			if (otherNode->volume(leef) < callerNode->volume(leef)
-			{
-				// remove element from caller Node and insert it into the other bounding box
-				leef.remove();
-				insert(leef);
-			}
-		}
-	}
-
-	// calculate new min max
-	auto const min = otherNode == nullptr ? callerNode->getMin() : glm::min(callerNode->getMin(), otherNode->getMin());
-	auto const max = otherNode == nullptr ? callerNode->getMax() : glm::min(callerNode->getMax(), otherNode->getMax());
-
-	if (min != getMin() || max != getMax())
-	{ // boundaries have changed
-		if (BaseNode::mParrent != nullptr) {
-			// update parrent node
-			BaseNode::mParrent->update(mObj, BaseNode::mIsLeft);
-		}
-	}
-
-
-}
-
-template<typename T>
-inline void AABBTree<T>::Node::calcMinMax(glm::vec3& min, glm::vec3& max)
-{
 	if (mLeft != nullptr && mRight != nullptr) {
 		min = glm::min(mLeft->getMin(), mRight->getMin());
 		max = glm::min(mLeft->getMax(), mRight->getMax());
@@ -228,4 +404,111 @@ inline void AABBTree<T>::Node::calcMinMax(glm::vec3& min, glm::vec3& max)
 		min = {};
 		max = {};
 	}
+
+	return { min, max };
+}
+
+
+
+template<typename T>
+template<typename TFunc>
+inline void AABBTree<T>::Node::getAllMinMax(TFunc func) const
+{
+	func(mMin, mMax);
+
+	if (mLeft != nullptr) {
+		mLeft->getAllMinMax(func);
+	}
+	if (mRight != nullptr) {
+		mRight->getAllMinMax(func);
+	}
+}
+
+
+size_t PotenzSum(size_t const base, size_t const exponent) 
+{
+	if (exponent == 0) {
+		return 0;
+	}
+
+	size_t sum = 1;
+	size_t potenz = 1;
+
+
+	for (size_t i = 0; i < exponent-1; ++i) {
+		potenz *= base;
+		sum += potenz;
+	}
+
+	return sum;
+}
+
+
+template<typename T>
+inline void AABBTree<T>::Node::print(std::ostream& ost) const
+{
+	size_t const dataWidth = 8;
+	std::string const space(dataWidth/2, ' ');
+
+	size_t const h = height();
+
+
+
+	for (size_t i = 0; i < h; ++i)
+	{
+		for (size_t j = 0; j < PotenzSum(2, (h - i-1)); ++j) {
+			ost << space;
+		}
+
+		print(ost, i, h, &AABBTree<T>::Node::getMin);
+		ost << std::endl;
+
+		for (size_t j = 0; j < PotenzSum(2, (h - i - 1)); ++j) {
+			ost << space;
+		}
+
+		print(ost, i, h, &AABBTree<T>::Node::getMax);
+		ost << std::endl;
+
+		ost << std::endl;
+	}
+
+}
+
+template<typename T>
+template<typename TFunc>
+inline void AABBTree<T>::Node::print(std::ostream& ost, size_t const depth, size_t const height, TFunc func) const
+{
+	size_t const dataWidth = 8;
+	std::string const space(dataWidth, ' ');
+
+	if (depth == 0) {
+		auto memberfunc = std::bind(func, this);
+
+		ost << " " << memberfunc(this).x << " " << memberfunc(this).y << " " << memberfunc(this).z << "  ";
+		return;
+	}
+	else if (depth == 1) {
+		if (mLeft == nullptr) {
+			ost << space;
+		}
+		if (mRight == nullptr) {
+			ost << space;
+		}
+	}
+
+
+	if (mLeft != nullptr) {
+		mLeft->print(ost, depth - 1, height - 1, func);
+	}
+	if (depth == 1) {
+		for (size_t j = 0; j < PotenzSum(2, (height - depth - 1)); ++j) {
+			ost << space;
+		}
+	}
+
+	if (mRight != nullptr) {
+		mRight->print(ost, depth - 1, height - 1, func);
+	}
+
 }
