@@ -150,6 +150,7 @@ inline bool AABBTree<T>::Node::insertRecursive(sptr& leef)
 		{	// left node in the tree is already a leef. Create a new node
 			auto left = mLeft;
 			mLeft = std::make_shared<Node>();
+			mLeft->mParrent = this;
 			mLeft->insert(left);
 			mLeft->insert(leef);
 		}
@@ -160,6 +161,7 @@ inline bool AABBTree<T>::Node::insertRecursive(sptr& leef)
 		{	// left node in the tree is already a leef. Create a new node
 			auto right = mRight;
 			mRight = std::make_shared<Node>();
+			mRight->mParrent = this;
 			mRight->insert(right);
 			mRight->insert(leef);
 		}
@@ -273,7 +275,13 @@ inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::remove()
 		mParrent->mRight = nullptr;
 	}
 
-	mParrent->update(nullptr);
+	if (mParrent->mLeft.get() == nullptr && mParrent->mRight.get() == nullptr) {
+		mParrent->remove();
+	}
+	else {
+		mParrent->update(nullptr);
+	}
+
 	mParrent = nullptr;
 
 	return thisNode;	// return as shared pointer to not yet kill this object
@@ -359,6 +367,8 @@ inline typename AABBTree<T>::Node::sptr AABBTree<T>::Node::getSmallesVolumeNode(
 		return mLeft;
 	}
 	else {
+		auto volLeft = mLeft->volume(node);
+		auto volRight = mRight->volume(node);
 		if (mLeft->volume(node) < mRight->volume(node)) {
 			return mLeft;
 		}
@@ -390,7 +400,7 @@ inline std::tuple<glm::vec3, glm::vec3> AABBTree<T>::Node::calculateChildrenMinM
 
 	if (mLeft != nullptr && mRight != nullptr) {
 		min = glm::min(mLeft->getMin(), mRight->getMin());
-		max = glm::min(mLeft->getMax(), mRight->getMax());
+		max = glm::max(mLeft->getMax(), mRight->getMax());
 	}
 	else if (mLeft != nullptr) {
 		min = mLeft->getMin();

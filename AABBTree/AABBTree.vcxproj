@@ -154,6 +154,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AABBTreeLeef.h" />
+    <ClInclude Include="AABBTreeMLeef.h" />
+    <ClInclude Include="AABBTreeM.h" />
+    <ClInclude Include="AABBTreeMNode.h" />
     <ClInclude Include="AABBTreeNode.h" />
     <ClInclude Include="AABBTree.h" />
   </ItemGroup>

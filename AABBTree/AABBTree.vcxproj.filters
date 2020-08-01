@@ -29,5 +29,14 @@
     <ClInclude Include="AABBTree.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="AABBTreeM.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="AABBTreeMLeef.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="AABBTreeMNode.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
